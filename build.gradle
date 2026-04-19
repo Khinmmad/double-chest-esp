@@ -1,0 +1,40 @@
+plugins {
+    id 'fabric-loom' version '1.7-SNAPSHOT'
+}
+
+version = '1.1.0'
+group   = 'com.example'
+
+base {
+    archivesName = 'double-chest-esp'
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://maven.fabricmc.net/' }
+    maven { url 'https://maven.meteordev.org/releases' }
+    maven { url 'https://maven.meteordev.org/snapshots' }
+}
+
+dependencies {
+    // Minecraft 1.21.1 — requiere Java 21
+    minecraft         'com.mojang:minecraft:1.21.1'
+    mappings          'net.fabricmc:yarn:1.21.1+build.3:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.16.9'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.102.0+1.21.1'
+
+    // Meteor Client 0.5.8 (para MC 1.21.1)
+    modImplementation 'meteordevelopment:meteor-client:0.5.8'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}

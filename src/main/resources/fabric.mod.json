@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "id": "double-chest-esp",
+    "version": "${version}",
+    "name": "DoubleChestESP",
+    "description": "Resalta cofres dobles a través de paredes.",
+    "authors": ["Israel"],
+    "license": "MIT",
+    "environment": "client",
+    "entrypoints": {
+        "meteor": [
+            "com.example.addon.AddonMain"
+        ]
+    },
+    "depends": {
+        "fabricloader": ">=0.16.0",
+        "minecraft": "~1.21",
+        "meteor-client": "*"
+    }
+}
