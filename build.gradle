@@ -1,8 +1,8 @@
 plugins {
-    id 'fabric-loom' version '1.7-SNAPSHOT'
+    id 'fabric-loom' version '1.14-SNAPSHOT'
 }
 
-version = '1.1.0'
+version = '1.2.0'
 group   = 'com.example'
 
 base {
@@ -17,14 +17,14 @@ repositories {
 }
 
 dependencies {
-    // Minecraft 1.21.1 — requiere Java 21
-    minecraft         'com.mojang:minecraft:1.21.1'
-    mappings          'net.fabricmc:yarn:1.21.1+build.3:v2'
-    modImplementation 'net.fabricmc:fabric-loader:0.16.9'
-    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.102.0+1.21.1'
+    // Minecraft 1.21.11 — requiere Java 21
+    minecraft         'com.mojang:minecraft:1.21.11'
+    mappings          'net.fabricmc:yarn:1.21.11+build.3:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.18.2'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.3+1.21.11'
 
-    // Meteor Client 0.5.8 (para MC 1.21.1)
-    modImplementation 'meteordevelopment:meteor-client:0.5.8'
+    // Meteor Client snapshot para MC 1.21.11
+    modImplementation 'meteordevelopment:meteor-client:1.21.11-SNAPSHOT'
 }
 
 processResources {
@@ -35,6 +35,11 @@ processResources {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+
+    // Si no tienes JDK 21 instalado, Gradle lo descargará automáticamente.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }

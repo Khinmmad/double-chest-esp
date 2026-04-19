@@ -95,7 +95,7 @@ public class BarrelESP extends Module {
         int r = range.get();
         BlockPos center = mc.player.getBlockPos();
         BlockPos from = new BlockPos(center.getX() - r, mc.world.getBottomY(), center.getZ() - r);
-        BlockPos to   = new BlockPos(center.getX() + r, mc.world.getTopY() - 1, center.getZ() + r);
+        BlockPos to   = new BlockPos(center.getX() + r, mc.world.getTopYInclusive(), center.getZ() + r);
 
         for (BlockPos pos : BlockPos.iterate(from, to)) {
             if (mc.world.getBlockState(pos).getBlock() != Blocks.BARREL) continue;

@@ -35,7 +35,8 @@ public class ChestTracer extends Module {
         DoubleChestESP dce = Modules.get().get(DoubleChestESP.class);
         if (dce == null || !dce.isActive()) return;
 
-        Vec3d pPos = mc.player.getPos().add(0, mc.player.getStandingEyeHeight() * 0.5, 0);
+        Vec3d pPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ())
+            .add(0, mc.player.getStandingEyeHeight() * 0.5, 0);
         SettingColor c = color.get();
 
         for (Box b : dce.getDetectedBoxes()) {

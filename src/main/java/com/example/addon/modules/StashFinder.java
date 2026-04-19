@@ -96,11 +96,11 @@ public class StashFinder extends Module {
 
         int count = 0;
         int bottomY = mc.world.getBottomY();
-        int topY    = mc.world.getTopY();
+        int topY    = mc.world.getTopYInclusive();
 
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                for (int y = bottomY; y < topY; y++) {
+                for (int y = bottomY; y <= topY; y++) {
                     BlockPos pos = new BlockPos(cp.getStartX() + x, y, cp.getStartZ() + z);
                     Block b = chunk.getBlockState(pos).getBlock();
                     if (matches(b)) count++;

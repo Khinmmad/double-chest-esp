@@ -5,4 +5,9 @@ pluginManagement {
     }
 }
 
+plugins {
+    // Permite que Gradle descargue automáticamente JDK 21 si no está instalado
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'double-chest-esp'

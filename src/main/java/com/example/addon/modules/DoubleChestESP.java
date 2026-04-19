@@ -183,7 +183,7 @@ public class DoubleChestESP extends Module {
         BlockPos center = mc.player.getBlockPos();
 
         int yMin = Math.max(minY.get(), mc.world.getBottomY());
-        int yMax = Math.min(maxY.get(), mc.world.getTopY() - 1);
+        int yMax = Math.min(maxY.get(), mc.world.getTopYInclusive());
         if (yMin > yMax) return;
 
         BlockPos from = new BlockPos(center.getX() - r, yMin, center.getZ() - r);
