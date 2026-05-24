@@ -1,6 +1,8 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonCategory;
+import com.example.addon.NametagHelper;
+import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -77,6 +79,13 @@ public class DoubleChestESP extends Module {
         .name("max-y")
         .description("Y máxima a escanear.")
         .defaultValue(320).min(-64).max(320).sliderRange(-64, 320)
+        .build()
+    );
+
+    private final Setting<Boolean> nametags = sgGeneral.add(new BoolSetting.Builder()
+        .name("nametags")
+        .description("Mostrar el nombre y la distancia sobre cada cofre.")
+        .defaultValue(true)
         .build()
     );
 
@@ -272,6 +281,19 @@ public class DoubleChestESP extends Module {
             SettingColor sc = e.trapped ? trappedSide.get() : sideColor.get();
             SettingColor lc = e.trapped ? trappedLine.get() : lineColor.get();
             event.renderer.box(e.box, sc, lc, shapeMode.get(), 0);
+        }
+    }
+
+    @EventHandler
+    private void onRender2D(Render2DEvent event) {
+        if (!nametags.get() || mc.player == null) return;
+        double px = mc.player.getX(), py = mc.player.getY(), pz = mc.player.getZ();
+        for (ChestEntry e : found) {
+            double cx = (e.box.minX + e.box.maxX) / 2.0;
+            double cy = e.box.maxY + 0.2;
+            double cz = (e.box.minZ + e.box.maxZ) / 2.0;
+            String name = e.trapped ? "Cofre trampa" : "Cofre";
+            NametagHelper.render(cx, cy, cz, NametagHelper.label(name, cx, cy, cz, px, py, pz), 1.0);
         }
     }
 

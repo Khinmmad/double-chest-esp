@@ -1,11 +1,14 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonCategory;
+import com.example.addon.NametagHelper;
+import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.BlockUpdateEvent;
 import meteordevelopment.meteorclient.events.world.ChunkDataEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -61,9 +64,26 @@ public abstract class BlockScanESP extends Module {
         .build()
     );
 
+    private final Setting<Boolean> nametags = sgRender.add(new BoolSetting.Builder()
+        .name("nametags")
+        .description("Mostrar el nombre y la distancia sobre cada bloque cercano.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Integer> nametagRange = sgRender.add(new IntSetting.Builder()
+        .name("nametag-range")
+        .description("Solo dibuja nametags de bloques a esta distancia o menos (evita saturar).")
+        .defaultValue(32).min(4).max(96).sliderRange(8, 64)
+        .visible(nametags::get)
+        .build()
+    );
+
+    private record Target(AABB box, String name) {}
+
     private final ArrayDeque<Long> queue = new ArrayDeque<>();
     private final Set<Long> queued = new HashSet<>();
-    private final Map<Long, List<AABB>> found = new HashMap<>();
+    private final Map<Long, List<Target>> found = new HashMap<>();
 
     protected BlockScanESP(String name, String description) {
         super(AddonCategory.DCE, name, description);
@@ -141,7 +161,7 @@ public abstract class BlockScanESP extends Module {
         LevelChunkSection[] sections = chunk.getSections();
         int minSecY = chunk.getMinSectionY();
         int ox = cx << 4, oz = cz << 4;
-        List<AABB> list = null;
+        List<Target> list = null;
 
         for (int i = 0; i < sections.length; i++) {
             LevelChunkSection sec = sections[i];
@@ -151,10 +171,14 @@ public abstract class BlockScanESP extends Module {
             for (int x = 0; x < 16; x++) {
                 for (int y = 0; y < 16; y++) {
                     for (int z = 0; z < 16; z++) {
-                        if (matches(sec.getBlockState(x, y, z))) {
+                        BlockState st = sec.getBlockState(x, y, z);
+                        if (matches(st)) {
                             if (list == null) list = new ArrayList<>();
                             double wx = ox + x, wy = baseY + y, wz = oz + z;
-                            list.add(new AABB(wx, wy, wz, wx + 1.0, wy + 1.0, wz + 1.0));
+                            list.add(new Target(
+                                new AABB(wx, wy, wz, wx + 1.0, wy + 1.0, wz + 1.0),
+                                st.getBlock().getName().getString()
+                            ));
                         }
                     }
                 }
@@ -171,9 +195,26 @@ public abstract class BlockScanESP extends Module {
         SettingColor sc = sideColor();
         SettingColor lc = lineColor();
         ShapeMode mode = shapeMode.get();
-        for (List<AABB> list : found.values()) {
-            for (AABB box : list) {
-                event.renderer.box(box, sc, lc, mode, 0);
+        for (List<Target> list : found.values()) {
+            for (Target t : list) {
+                event.renderer.box(t.box(), sc, lc, mode, 0);
+            }
+        }
+    }
+
+    @EventHandler
+    private void onRender2D(Render2DEvent event) {
+        if (!nametags.get() || found.isEmpty() || mc.player == null) return;
+        double px = mc.player.getX(), py = mc.player.getY(), pz = mc.player.getZ();
+        double maxSq = (double) nametagRange.get() * nametagRange.get();
+
+        for (List<Target> list : found.values()) {
+            for (Target t : list) {
+                AABB b = t.box();
+                double cx = (b.minX + b.maxX) / 2.0, cy = b.maxY + 0.15, cz = (b.minZ + b.maxZ) / 2.0;
+                double dx = cx - px, dy = cy - py, dz = cz - pz;
+                if (dx * dx + dy * dy + dz * dz > maxSq) continue;
+                NametagHelper.render(cx, cy, cz, NametagHelper.label(t.name(), cx, cy, cz, px, py, pz), 1.0);
             }
         }
     }

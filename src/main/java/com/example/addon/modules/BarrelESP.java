@@ -1,6 +1,8 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonCategory;
+import com.example.addon.NametagHelper;
+import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -47,6 +49,13 @@ public class BarrelESP extends Module {
         .name("ignore-villager-workstations")
         .description("Ignora barriles cerca de aldeanos (workstations). Aproximación: filtra si hay aldeanos a 3 bloques.")
         .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Boolean> nametags = sgGeneral.add(new BoolSetting.Builder()
+        .name("nametags")
+        .description("Mostrar el nombre y la distancia sobre cada barril.")
+        .defaultValue(true)
         .build()
     );
 
@@ -134,6 +143,16 @@ public class BarrelESP extends Module {
         if (mc.level == null || mc.player == null) return;
         for (AABB b : found) {
             event.renderer.box(b, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
+        }
+    }
+
+    @EventHandler
+    private void onRender2D(Render2DEvent event) {
+        if (!nametags.get() || mc.player == null) return;
+        double px = mc.player.getX(), py = mc.player.getY(), pz = mc.player.getZ();
+        for (AABB b : found) {
+            double cx = (b.minX + b.maxX) / 2.0, cy = b.maxY + 0.2, cz = (b.minZ + b.maxZ) / 2.0;
+            NametagHelper.render(cx, cy, cz, NametagHelper.label("Barril", cx, cy, cz, px, py, pz), 1.0);
         }
     }
 }

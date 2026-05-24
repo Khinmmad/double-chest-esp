@@ -1,6 +1,8 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonCategory;
+import com.example.addon.NametagHelper;
+import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -53,6 +55,13 @@ public class TrialChamberESP extends Module {
     private final Setting<Boolean> showVaults = sgGeneral.add(new BoolSetting.Builder()
         .name("vaults")
         .description("Resaltar vaults / cofres de llaves (normales y ominosos).")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> nametags = sgGeneral.add(new BoolSetting.Builder()
+        .name("nametags")
+        .description("Mostrar el nombre y la distancia sobre cada spawner/vault.")
         .defaultValue(true)
         .build()
     );
@@ -165,6 +174,19 @@ public class TrialChamberESP extends Module {
             SettingColor sc = e.vault ? vaultSide.get() : spawnerSide.get();
             SettingColor lc = e.vault ? vaultLine.get() : spawnerLine.get();
             event.renderer.box(e.box, sc, lc, shapeMode.get(), 0);
+        }
+    }
+
+    @EventHandler
+    private void onRender2D(Render2DEvent event) {
+        if (!nametags.get() || mc.player == null) return;
+        double px = mc.player.getX(), py = mc.player.getY(), pz = mc.player.getZ();
+        for (Entry e : found) {
+            double cx = (e.box.minX + e.box.maxX) / 2.0;
+            double cy = e.box.maxY + 0.2;
+            double cz = (e.box.minZ + e.box.maxZ) / 2.0;
+            String name = e.vault ? "Vault" : "Trial Spawner";
+            NametagHelper.render(cx, cy, cz, NametagHelper.label(name, cx, cy, cz, px, py, pz), 1.0);
         }
     }
 }
