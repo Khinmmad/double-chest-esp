@@ -2,10 +2,18 @@ package com.example.addon;
 
 import com.example.addon.modules.BarrelESP;
 import com.example.addon.modules.ChestTracer;
+import com.example.addon.modules.CoordsMark;
+import com.example.addon.modules.DeathCoords;
 import com.example.addon.modules.DoubleChestESP;
+import com.example.addon.modules.ItemTracer;
+import com.example.addon.modules.MobProximityAlert;
+import com.example.addon.modules.OreESP;
 import com.example.addon.modules.ShulkerESP;
+import com.example.addon.modules.SpawnerESP;
 import com.example.addon.modules.StashFinder;
+import com.example.addon.modules.ToolBreakAlert;
 import com.example.addon.modules.TrialChamberESP;
+import com.example.addon.modules.ValuableBlockESP;
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -28,6 +36,16 @@ public class AddonMain extends MeteorAddon {
         modules.add(new ChestTracer());
         modules.add(new StashFinder());
         modules.add(new TrialChamberESP());
+        modules.add(new ItemTracer());
+        // Detección (survival)
+        modules.add(new OreESP());
+        modules.add(new SpawnerESP());
+        modules.add(new ValuableBlockESP());
+        // Utilidad / QoL
+        modules.add(new DeathCoords());
+        modules.add(new ToolBreakAlert());
+        modules.add(new MobProximityAlert());
+        modules.add(new CoordsMark());
     }
 
     @Override
