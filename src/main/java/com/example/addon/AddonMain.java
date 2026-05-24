@@ -5,6 +5,7 @@ import com.example.addon.modules.ChestTracer;
 import com.example.addon.modules.DoubleChestESP;
 import com.example.addon.modules.ShulkerESP;
 import com.example.addon.modules.StashFinder;
+import com.example.addon.modules.TrialChamberESP;
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -26,6 +27,7 @@ public class AddonMain extends MeteorAddon {
         modules.add(new ShulkerESP());
         modules.add(new ChestTracer());
         modules.add(new StashFinder());
+        modules.add(new TrialChamberESP());
     }
 
     @Override

@@ -15,19 +15,25 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.TrappedChestBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class DoubleChestESP extends Module {
@@ -163,8 +169,8 @@ public class DoubleChestESP extends Module {
     }
 
     /** Acceso público para que ChestTracer reutilice el mismo cache. */
-    public List<Box> getDetectedBoxes() {
-        List<Box> out = new ArrayList<>(found.size());
+    public List<AABB> getDetectedBoxes() {
+        List<AABB> out = new ArrayList<>(found.size());
         for (ChestEntry e : found) out.add(e.box);
         return out;
     }
@@ -173,74 +179,82 @@ public class DoubleChestESP extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
         if (++ticker < updateDelay.get()) return;
         ticker = 0;
 
         found.clear();
 
         int r = range.get();
-        BlockPos center = mc.player.getBlockPos();
+        BlockPos center = mc.player.blockPosition();
 
-        int yMin = Math.max(minY.get(), mc.world.getBottomY());
-        int yMax = Math.min(maxY.get(), mc.world.getTopYInclusive());
+        int yMin = Math.max(minY.get(), mc.level.getMinY());
+        int yMax = Math.min(maxY.get(), mc.level.getMaxY());
         if (yMin > yMax) return;
-
-        BlockPos from = new BlockPos(center.getX() - r, yMin, center.getZ() - r);
-        BlockPos to   = new BlockPos(center.getX() + r, yMax, center.getZ() + r);
 
         Set<Long> currentTick = new HashSet<>();
 
-        for (BlockPos pos : BlockPos.iterate(from, to)) {
-            var state = mc.world.getBlockState(pos);
-            Block block = state.getBlock();
+        int chunkRadius = (r >> 4) + 1;
+        int pcx = center.getX() >> 4;
+        int pcz = center.getZ() >> 4;
 
-            boolean isNormal  = (block == Blocks.CHEST);
-            boolean isTrapped = (block == Blocks.TRAPPED_CHEST);
+        for (int cx = pcx - chunkRadius; cx <= pcx + chunkRadius; cx++) {
+            for (int cz = pcz - chunkRadius; cz <= pcz + chunkRadius; cz++) {
+                LevelChunk chunk = mc.level.getChunk(cx, cz);
 
-            if (!isNormal && !(isTrapped && includeTrapped.get())) continue;
+                for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
+                    BlockEntity be = entry.getValue();
+                    if (!(be instanceof ChestBlockEntity)) continue;
 
-            // Solo procesamos el bloque LEFT para no dibujar el mismo cofre dos veces.
-            ChestType type;
-            try {
-                type = state.get(ChestBlock.CHEST_TYPE);
-            } catch (Exception ex) {
-                continue;
-            }
-            if (type != ChestType.LEFT) continue;
+                    boolean isTrapped = be instanceof TrappedChestBlockEntity;
+                    if (isTrapped && !includeTrapped.get()) continue;
 
-            Direction facing   = state.get(ChestBlock.FACING);
-            BlockPos  otherPos = pos.offset(facing.rotateYClockwise());
+                    BlockPos pos = entry.getKey();
+                    if (pos.getY() < yMin || pos.getY() > yMax) continue;
+                    if (Math.abs(pos.getX() - center.getX()) > r) continue;
+                    if (Math.abs(pos.getZ() - center.getZ()) > r) continue;
 
-            double x1 = Math.min(pos.getX(), otherPos.getX());
-            double z1 = Math.min(pos.getZ(), otherPos.getZ());
-            double x2 = Math.max(pos.getX(), otherPos.getX()) + 1.0;
-            double z2 = Math.max(pos.getZ(), otherPos.getZ()) + 1.0;
+                    BlockState state = be.getBlockState();
+                    if (!(state.getBlock() instanceof ChestBlock)) continue;
 
-            BlockPos immut = pos.toImmutable();
-            long key = immut.asLong();
-            currentTick.add(key);
+                    // Solo procesamos el bloque LEFT para no dibujar el mismo cofre dos veces.
+                    ChestType type = state.getValue(ChestBlock.TYPE);
+                    if (type != ChestType.LEFT) continue;
 
-            found.add(new ChestEntry(
-                new Box(x1, pos.getY(), z1, x2, pos.getY() + 1.0, z2),
-                isTrapped,
-                immut
-            ));
+                    Direction facing   = state.getValue(ChestBlock.FACING);
+                    BlockPos  otherPos = pos.relative(facing.getClockWise());
 
-            if (!knownChests.contains(key)) {
-                if (chatNotify.get()) {
-                    ChatUtils.sendMsg(net.minecraft.text.Text.literal(
-                        "§eDoubleChestESP §7| §fNuevo cofre " +
-                        (isTrapped ? "§ctrampa" : "§6normal") +
-                        " §7en §a" + immut.toShortString()
+                    double x1 = Math.min(pos.getX(), otherPos.getX());
+                    double z1 = Math.min(pos.getZ(), otherPos.getZ());
+                    double x2 = Math.max(pos.getX(), otherPos.getX()) + 1.0;
+                    double z2 = Math.max(pos.getZ(), otherPos.getZ()) + 1.0;
+
+                    BlockPos immut = pos.immutable();
+                    long key = immut.asLong();
+                    currentTick.add(key);
+
+                    found.add(new ChestEntry(
+                        new AABB(x1, pos.getY(), z1, x2, pos.getY() + 1.0, z2),
+                        isTrapped,
+                        immut
                     ));
-                }
-                if (soundNotify.get() && mc.player != null) {
-                    MinecraftClient.getInstance().getSoundManager().play(
-                        net.minecraft.client.sound.PositionedSoundInstance.master(
-                            SoundEvents.BLOCK_NOTE_BLOCK_PLING.value(), 1.5f, 1.0f
-                        )
-                    );
+
+                    if (!knownChests.contains(key)) {
+                        if (chatNotify.get()) {
+                            ChatUtils.sendMsg(Component.literal(
+                                "§eDoubleChestESP §7| §fNuevo cofre " +
+                                (isTrapped ? "§ctrampa" : "§6normal") +
+                                " §7en §a" + immut.toShortString()
+                            ));
+                        }
+                        if (soundNotify.get() && mc.player != null) {
+                            Minecraft.getInstance().getSoundManager().play(
+                                SimpleSoundInstance.forUI(
+                                    SoundEvents.NOTE_BLOCK_PLING.value(), 1.5f, 1.0f
+                                )
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -253,7 +267,7 @@ public class DoubleChestESP extends Module {
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
         for (ChestEntry e : found) {
             SettingColor sc = e.trapped ? trappedSide.get() : sideColor.get();
             SettingColor lc = e.trapped ? trappedLine.get() : lineColor.get();
@@ -269,10 +283,10 @@ public class DoubleChestESP extends Module {
     // ── Clase interna ─────────────────────────────────────────────────────
 
     private static class ChestEntry {
-        final Box      box;
+        final AABB     box;
         final boolean  trapped;
         final BlockPos pos;
-        ChestEntry(Box box, boolean trapped, BlockPos pos) {
+        ChestEntry(AABB box, boolean trapped, BlockPos pos) {
             this.box = box;
             this.trapped = trapped;
             this.pos = pos;

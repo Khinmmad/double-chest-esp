@@ -2,6 +2,7 @@ package com.example.addon.modules;
 
 import com.example.addon.AddonCategory;
 import meteordevelopment.meteorclient.events.world.ChunkDataEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -9,16 +10,20 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.chunk.WorldChunk;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.entity.BarrelBlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.HopperBlockEntity;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 
+import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -30,6 +35,13 @@ public class StashFinder extends Module {
         .name("min-containers")
         .description("Número mínimo de contenedores en un chunk para considerarlo un stash.")
         .defaultValue(4).min(1).max(64).sliderRange(1, 32)
+        .build()
+    );
+
+    private final Setting<Integer> chunksPerTick = sgGeneral.add(new IntSetting.Builder()
+        .name("chunks-per-tick")
+        .description("Cuántos chunks de la cola se analizan por tick. Más bajo = más suave al moverse.")
+        .defaultValue(8).min(1).max(64).sliderRange(1, 32)
         .build()
     );
 
@@ -68,7 +80,11 @@ public class StashFinder extends Module {
         .build()
     );
 
+    // Chunks ya anunciados (no repetir aviso).
     private final Set<Long> notifiedChunks = new HashSet<>();
+    // Cola de chunks pendientes de analizar + set para evitar duplicados.
+    private final ArrayDeque<Long> pending = new ArrayDeque<>();
+    private final Set<Long> pendingSet = new HashSet<>();
 
     public StashFinder() {
         super(AddonCategory.DCE, "stash-finder",
@@ -78,60 +94,72 @@ public class StashFinder extends Module {
     @Override
     public void onActivate() {
         notifiedChunks.clear();
+        pending.clear();
+        pendingSet.clear();
     }
 
     @Override
     public void onDeactivate() {
         notifiedChunks.clear();
+        pending.clear();
+        pendingSet.clear();
     }
 
+    // Al cargar un chunk solo lo ENCOLAMOS: el trabajo real se reparte en onTick
+    // para no procesar cientos de chunks de golpe al moverse/teletransportarse.
     @EventHandler
     private void onChunkData(ChunkDataEvent event) {
-        if (mc.world == null) return;
-
-        WorldChunk chunk = event.chunk();
-        ChunkPos cp = chunk.getPos();
-        long key = cp.toLong();
+        long key = event.chunk().getPos().pack();
         if (notifiedChunks.contains(key)) return;
+        if (pendingSet.add(key)) pending.add(key);
+    }
 
-        int count = 0;
-        int bottomY = mc.world.getBottomY();
-        int topY    = mc.world.getTopYInclusive();
+    // Procesa un número limitado de chunks por tick (cola amortiguada).
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (mc.level == null || pending.isEmpty()) return;
 
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = bottomY; y <= topY; y++) {
-                    BlockPos pos = new BlockPos(cp.getStartX() + x, y, cp.getStartZ() + z);
-                    Block b = chunk.getBlockState(pos).getBlock();
-                    if (matches(b)) count++;
+        int budget = chunksPerTick.get();
+        while (budget-- > 0 && !pending.isEmpty()) {
+            long key = pending.poll();
+            pendingSet.remove(key);
+            if (notifiedChunks.contains(key)) continue;
+
+            int cx = ChunkPos.getX(key);
+            int cz = ChunkPos.getZ(key);
+            LevelChunk chunk = mc.level.getChunk(cx, cz);
+
+            int count = 0;
+            for (BlockEntity be : chunk.getBlockEntities().values()) {
+                if (matches(be)) count++;
+            }
+            if (count == 0) continue; // chunk vacío/no cargado todavía: lo ignoramos.
+
+            if (count >= minContainers.get()) {
+                notifiedChunks.add(key);
+                BlockPos center = new BlockPos(cx * 16 + 8, 64, cz * 16 + 8);
+
+                ChatUtils.sendMsg(Component.literal(
+                    "§dStashFinder §7| §fChunk con §a" + count +
+                    " §fcontenedores cerca de §b" + center.toShortString()
+                ));
+
+                if (playSound.get()) {
+                    Minecraft.getInstance().getSoundManager().play(
+                        SimpleSoundInstance.forUI(
+                            SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f
+                        )
+                    );
                 }
             }
         }
-
-        if (count >= minContainers.get()) {
-            notifiedChunks.add(key);
-            BlockPos centerBlock = new BlockPos(cp.getStartX() + 8, 64, cp.getStartZ() + 8);
-
-            ChatUtils.sendMsg(Text.literal(
-                "§dStashFinder §7| §fChunk con §a" + count +
-                " §fcontenedores cerca de §b" + centerBlock.toShortString()
-            ));
-
-            if (playSound.get()) {
-                MinecraftClient.getInstance().getSoundManager().play(
-                    net.minecraft.client.sound.PositionedSoundInstance.master(
-                        SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f
-                    )
-                );
-            }
-        }
     }
 
-    private boolean matches(Block b) {
-        if (countChests.get() && (b == Blocks.CHEST || b == Blocks.TRAPPED_CHEST)) return true;
-        if (countBarrels.get() && b == Blocks.BARREL) return true;
-        if (countShulkers.get() && b instanceof ShulkerBoxBlock) return true;
-        if (countHoppers.get() && b == Blocks.HOPPER) return true;
+    private boolean matches(BlockEntity be) {
+        if (countChests.get() && be instanceof ChestBlockEntity) return true;
+        if (countBarrels.get() && be instanceof BarrelBlockEntity) return true;
+        if (countShulkers.get() && be instanceof ShulkerBoxBlockEntity) return true;
+        if (countHoppers.get() && be instanceof HopperBlockEntity) return true;
         return false;
     }
 }

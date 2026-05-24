@@ -14,9 +14,9 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.TrialSpawnerBlockEntity;
+import net.minecraft.world.level.block.entity.vault.VaultBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.AABB;
 
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class BarrelESP extends Module {
+public class TrialChamberESP extends Module {
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender  = settings.createGroup("Render");
@@ -32,7 +32,7 @@ public class BarrelESP extends Module {
     private final Setting<Integer> range = sgGeneral.add(new IntSetting.Builder()
         .name("range")
         .description("Radio horizontal en bloques.")
-        .defaultValue(40).min(5).max(200).sliderRange(5, 100)
+        .defaultValue(64).min(5).max(200).sliderRange(5, 128)
         .build()
     );
 
@@ -43,10 +43,17 @@ public class BarrelESP extends Module {
         .build()
     );
 
-    private final Setting<Boolean> ignoreVillagerWorkstations = sgGeneral.add(new BoolSetting.Builder()
-        .name("ignore-villager-workstations")
-        .description("Ignora barriles cerca de aldeanos (workstations). Aproximación: filtra si hay aldeanos a 3 bloques.")
-        .defaultValue(false)
+    private final Setting<Boolean> showSpawners = sgGeneral.add(new BoolSetting.Builder()
+        .name("spawners")
+        .description("Resaltar trial spawners (normales y ominosos).")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> showVaults = sgGeneral.add(new BoolSetting.Builder()
+        .name("vaults")
+        .description("Resaltar vaults / cofres de llaves (normales y ominosos).")
+        .defaultValue(true)
         .build()
     );
 
@@ -57,25 +64,46 @@ public class BarrelESP extends Module {
         .build()
     );
 
-    private final Setting<SettingColor> sideColor = sgRender.add(new ColorSetting.Builder()
-        .name("side-color")
-        .description("Relleno del box.")
-        .defaultValue(new SettingColor(139, 90, 43, 55))
+    private final Setting<SettingColor> spawnerSide = sgRender.add(new ColorSetting.Builder()
+        .name("spawner-side-color")
+        .description("Relleno del box (trial spawner).")
+        .defaultValue(new SettingColor(0, 200, 200, 55))
         .build()
     );
 
-    private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
-        .name("line-color")
-        .description("Contorno del box.")
-        .defaultValue(new SettingColor(139, 90, 43, 230))
+    private final Setting<SettingColor> spawnerLine = sgRender.add(new ColorSetting.Builder()
+        .name("spawner-line-color")
+        .description("Contorno del box (trial spawner).")
+        .defaultValue(new SettingColor(0, 200, 200, 230))
         .build()
     );
 
-    private final List<AABB> found = new ArrayList<>();
+    private final Setting<SettingColor> vaultSide = sgRender.add(new ColorSetting.Builder()
+        .name("vault-side-color")
+        .description("Relleno del box (vault).")
+        .defaultValue(new SettingColor(255, 215, 0, 55))
+        .build()
+    );
+
+    private final Setting<SettingColor> vaultLine = sgRender.add(new ColorSetting.Builder()
+        .name("vault-line-color")
+        .description("Contorno del box (vault).")
+        .defaultValue(new SettingColor(255, 215, 0, 230))
+        .build()
+    );
+
+    private static class Entry {
+        final AABB box;
+        final boolean vault;
+        Entry(AABB box, boolean vault) { this.box = box; this.vault = vault; }
+    }
+
+    private final List<Entry> found = new ArrayList<>();
     private int ticker = 0;
 
-    public BarrelESP() {
-        super(AddonCategory.DCE, "barrel-esp", "Resalta barriles a través de paredes.");
+    public TrialChamberESP() {
+        super(AddonCategory.DCE, "trial-chamber-esp",
+              "Resalta trial spawners y vaults (cofres de llaves) de las trial chambers a través de paredes.");
     }
 
     @Override
@@ -108,22 +136,23 @@ public class BarrelESP extends Module {
                 LevelChunk chunk = mc.level.getChunk(cx, cz);
 
                 for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
-                    if (!(entry.getValue() instanceof BarrelBlockEntity)) continue;
+                    BlockEntity be = entry.getValue();
+
+                    boolean isSpawner = be instanceof TrialSpawnerBlockEntity;
+                    boolean isVault   = be instanceof VaultBlockEntity;
+                    if (!isSpawner && !isVault) continue;
+                    if (isSpawner && !showSpawners.get()) continue;
+                    if (isVault && !showVaults.get()) continue;
 
                     BlockPos pos = entry.getKey();
                     if (Math.abs(pos.getX() - center.getX()) > r) continue;
                     if (Math.abs(pos.getZ() - center.getZ()) > r) continue;
 
-                    if (ignoreVillagerWorkstations.get()) {
-                        AABB neighborhood = new AABB(pos).inflate(3.0);
-                        boolean hasVillager = !mc.level
-                            .getEntitiesOfClass(Villager.class, neighborhood, v -> true)
-                            .isEmpty();
-                        if (hasVillager) continue;
-                    }
-
-                    found.add(new AABB(pos.getX(), pos.getY(), pos.getZ(),
-                                       pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0));
+                    found.add(new Entry(
+                        new AABB(pos.getX(), pos.getY(), pos.getZ(),
+                                 pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0),
+                        isVault
+                    ));
                 }
             }
         }
@@ -132,8 +161,10 @@ public class BarrelESP extends Module {
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (mc.level == null || mc.player == null) return;
-        for (AABB b : found) {
-            event.renderer.box(b, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
+        for (Entry e : found) {
+            SettingColor sc = e.vault ? vaultSide.get() : spawnerSide.get();
+            SettingColor lc = e.vault ? vaultLine.get() : spawnerLine.get();
+            event.renderer.box(e.box, sc, lc, shapeMode.get(), 0);
         }
     }
 }

@@ -12,12 +12,15 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ShulkerESP extends Module {
 
@@ -59,7 +62,7 @@ public class ShulkerESP extends Module {
         .build()
     );
 
-    private final List<Box> found = new ArrayList<>();
+    private final List<AABB> found = new ArrayList<>();
     private int ticker = 0;
 
     public ShulkerESP() {
@@ -79,27 +82,40 @@ public class ShulkerESP extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
         if (++ticker < updateDelay.get()) return;
         ticker = 0;
 
         found.clear();
         int r = range.get();
-        BlockPos center = mc.player.getBlockPos();
-        BlockPos from = new BlockPos(center.getX() - r, mc.world.getBottomY(), center.getZ() - r);
-        BlockPos to   = new BlockPos(center.getX() + r, mc.world.getTopYInclusive(), center.getZ() + r);
+        BlockPos center = mc.player.blockPosition();
 
-        for (BlockPos pos : BlockPos.iterate(from, to)) {
-            if (!(mc.world.getBlockState(pos).getBlock() instanceof ShulkerBoxBlock)) continue;
-            found.add(new Box(pos.getX(), pos.getY(), pos.getZ(),
-                              pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0));
+        int chunkRadius = (r >> 4) + 1;
+        int pcx = center.getX() >> 4;
+        int pcz = center.getZ() >> 4;
+
+        for (int cx = pcx - chunkRadius; cx <= pcx + chunkRadius; cx++) {
+            for (int cz = pcz - chunkRadius; cz <= pcz + chunkRadius; cz++) {
+                LevelChunk chunk = mc.level.getChunk(cx, cz);
+
+                for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
+                    if (!(entry.getValue() instanceof ShulkerBoxBlockEntity)) continue;
+
+                    BlockPos pos = entry.getKey();
+                    if (Math.abs(pos.getX() - center.getX()) > r) continue;
+                    if (Math.abs(pos.getZ() - center.getZ()) > r) continue;
+
+                    found.add(new AABB(pos.getX(), pos.getY(), pos.getZ(),
+                                       pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0));
+                }
+            }
         }
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        if (mc.world == null || mc.player == null) return;
-        for (Box b : found) {
+        if (mc.level == null || mc.player == null) return;
+        for (AABB b : found) {
             event.renderer.box(b, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
         }
     }

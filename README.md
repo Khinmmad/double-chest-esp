@@ -1,6 +1,6 @@
 # DoubleChestESP Addon
 
-Addon para [Meteor Client](https://meteorclient.com/) en Minecraft **1.20.1** (Fabric) que resalta contenedores a través de paredes.
+Addon para [Meteor Client](https://meteorclient.com/) en Minecraft **26.1.2** (Fabric) que resalta contenedores a través de paredes.
 
 ## Módulos incluidos
 
@@ -16,19 +16,19 @@ Todos los módulos comparten la categoría propia `DCE` para mantenerlos juntos 
 
 ## Compilar
 
-Requisitos: **JDK 17** y conexión a Internet (descarga dependencias de Fabric y Meteor).
+Requisitos: **JDK 25** y conexión a Internet (descarga dependencias de Fabric y Meteor).
 
 ```bash
 ./gradlew build
 ```
 
-El JAR final se genera en `build/libs/double-chest-esp-1.0.0.jar`.
+El JAR final se genera en `build/libs/double-chest-esp-2.0.0.jar`.
 
 ## Instalación
 
-1. Instala [Fabric Loader 0.14.22+](https://fabricmc.net/use/) para Minecraft 1.20.1.
-2. Instala [Fabric API](https://modrinth.com/mod/fabric-api) y [Meteor Client 0.5.4+](https://meteorclient.com/) en tu carpeta `mods`.
-3. Copia `double-chest-esp-1.0.0.jar` en la misma carpeta `mods`.
+1. Instala [Fabric Loader 0.19.2+](https://fabricmc.net/use/) para Minecraft 26.1.2.
+2. Instala [Meteor Client para 26.1.2](https://meteorclient.com/) en tu carpeta `mods`.
+3. Copia `double-chest-esp-2.0.0.jar` en la misma carpeta `mods`.
 4. Abre Minecraft y busca los módulos en la categoría **DCE** dentro de Meteor Client.
 
 ## Estructura

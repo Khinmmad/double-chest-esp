@@ -9,8 +9,8 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class ChestTracer extends Module {
 
@@ -30,20 +30,26 @@ public class ChestTracer extends Module {
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
 
         DoubleChestESP dce = Modules.get().get(DoubleChestESP.class);
         if (dce == null || !dce.isActive()) return;
 
-        Vec3d pPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ())
-            .add(0, mc.player.getStandingEyeHeight() * 0.5, 0);
+        // Origen en la mira: partimos de la posición de la cámara y la desplazamos
+        // 1 bloque hacia delante en la dirección de la vista. Si partiéramos del ojo
+        // exacto, la línea se proyectaría como un punto y no se vería.
+        Vec3 eye  = mc.gameRenderer.getMainCamera().position();
+        Vec3 look = mc.player.getViewVector(event.tickDelta);
+        double sx = eye.x + look.x;
+        double sy = eye.y + look.y;
+        double sz = eye.z + look.z;
         SettingColor c = color.get();
 
-        for (Box b : dce.getDetectedBoxes()) {
+        for (AABB b : dce.getDetectedBoxes()) {
             double cx = (b.minX + b.maxX) / 2.0;
             double cy = (b.minY + b.maxY) / 2.0;
             double cz = (b.minZ + b.maxZ) / 2.0;
-            event.renderer.line(pPos.x, pPos.y, pPos.z, cx, cy, cz, c);
+            event.renderer.line(sx, sy, sz, cx, cy, cz, c);
         }
     }
 }
